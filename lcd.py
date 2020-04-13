@@ -7,6 +7,7 @@ import subprocess
 import ipget
 from pythonosc import osc_server
 from pythonosc.dispatcher import Dispatcher
+import RPi.GPIO as GPIO
 
 i2c = smbus.SMBus(1) # 1 is bus number
 addr02=0x3e #lcd
@@ -16,6 +17,9 @@ _clear=0x01
 _home=0x02
 display_On=0x0f
 LCD_2ndline=0x40+0x80
+
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(7, GPIO.OUT) #pin7 = GPIO4
 
 #LCD AQM0802/1602
 def command( code ):
@@ -57,13 +61,12 @@ def display_handler(unused_addr, msg):
 init ()
 command(_clear)
 
+#IPアドレスを表示してバックライトをオン
 ip = ipget.ipget()
 ip_addr = ip.ipaddr('wlan0')
 display_handler(0, ip_addr)
 print(ip_addr)
-#writeLCD(ip_addr[0:8])
-#command(LCD_2ndline)
-#writeLCD(ip_addr[8:16])
+GPIO.output(7, 1)
 time.sleep(0.5)
 
 ip = '127.0.0.1'

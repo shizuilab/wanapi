@@ -1,34 +1,27 @@
 #!/usr/bin/node
 //ShizuiNet WanaPi NIS1 version
-//Invented and Programmed by K.Tezuka & K.Mochizuki at Gifu University, Supported by Tech Bureou $ 4D Pocket. 
-//20200409
+//Invented and Programmed by K.Tezuka & K.Mochizuki at Gifu University
+//Supported by Tech Bureou $ 4D Pocket.
+//Distributed from 20200409
+//非同期処理についてはこちらを参考にした：https://qiita.com/KuwaK/items/6455e34c245992a73aa1
+
+console.log("WanaPi!起動中...");
+
+const config = require('./config'); //公開したくない環境変数はconfigディレクトリへ
 
 const { Client } = require('node-osc');
 const client = new Client('127.0.0.1', 5005);
 
-const os = require('os');
-let interfaces = os.networkInterfaces();
-let ip = '';
-
-const sleep = msec => new Promise(resolve => setTimeout(resolve, msec));
-
-const config = require('./config');
-
 var gpio = require('rpi-gpio');
 const LED_PIN = 7; // GPIO04
-var ledOn = true;
 
-//IPアドレス取得
-for (let dev in interfaces) {
-    interfaces[dev].forEach((details) => {
-        if (details.internal || details.family !== 'IPv4') return;
+const prompts = require("prompts") // バーコード読み取り用ライブラリの読み込み
 
-        ip = `${details.address}`;
-    });
-}
+//バックライトオンの時間を制御するスリープ関数
+const sleep = msec => new Promise(resolve => setTimeout(resolve, msec));
 
-//AQM0802 Back Light オン（ms)
-async function LED(ms){
+//AQM0802 バックライトをオン（msの間)
+async function backlight(ms){
     gpio.setup(LED_PIN, gpio.DIR_OUT, () => {
         gpio.write(LED_PIN, true);
     });
@@ -38,21 +31,16 @@ async function LED(ms){
     });
 };
 
-console.log("System Start");
-var nem = require("nem-sdk").default;
-console.log("nem-sdk ready");
-const prompts = require("prompts"); // バーコード読み取り用ライブラリの読み込み
-console.log("prompts ready");
-
 // NIS1のMainnetを使用
-// 第1引数はMainnet用のデフォルトのノード
-// 第2引数はデフォルトのポート(7890)
-const endpoint = nem.model.objects.create('endpoint')(nem.model.nodes.defaultMainnet, nem.model.nodes.defaultPort);
+// 　　第1引数はMainnet用のデフォルトのノード
+// 　　第2引数はデフォルトのポート(7890)
+var nem = require("nem-sdk").default // NIS1用SDKを読み込み
+const endpoint = nem.model.objects.create('endpoint')
+        (nem.model.nodes.defaultMainnet, nem.model.nodes.defaultPort);
 
-// ここから主要な処理をする関数
+// ここから主要な処理をする非同期関数
 async function asyncLoop() {
-  LED(3000);
-  client.send('/change_msg', 'WANAPI!  =READY=', () => {});
+
   let questions = {
       type: "text", // インプットタイプ
       name: "myValue", // 変数名
@@ -63,15 +51,15 @@ async function asyncLoop() {
   let response =  await prompts(questions);
   console.log(response.myValue.length); //文字数カウント7文字から16文字まで受け入れる
   if (response.myValue.length < 7 || response.myValue.length > 16){
-    client.send('/change_msg', '<ERROR!>' + response.myValue, () => {});
+    client.send('/change_msg', '*ERROR!*' + response.myValue, () => {});
     console.log("入力値の文字数が不正です");
-    await LED(5000);
+    await backlight(3000); //エラーの時にはawaitで待ちを入れる
     return;
   }
-  client.send('/change_msg', response.myValue + '>>>>>>>>>>', () => {}); //入力文字列を表示し残りを>で埋める
-  LED(3000);
+  client.send('/change_msg', response.myValue + '..........', () => {}); //入力文字列を表示し残りを.で埋める
+  backlight(3000);
 
-  ////////NIS1トランザクション///////
+  ////////NIS1トランザクション構築///////
 
   // 送金先のアドレス（config/wanapi-nis1.jsから取得）
   const toAddress = config.ADDRESS;
@@ -98,7 +86,7 @@ async function asyncLoop() {
   // XEM以外のmosaicを付与する
   const yourMosaic = nem.model.objects.create('mosaicAttachment')(yourMosaicNamespace, yourMosaicName, 1);
   transferTransaction1.mosaics.push(yourMosaic);
-  // 手数料を正確に計算するためにモザイクの定義を取得する
+  // 手数料を計算するためにモザイクの定義を取得する
   let mosaicDefinitionMetaDataPair = nem.model.objects.get('mosaicDefinitionMetaDataPair');
   nem.com.requests.namespace.mosaicDefinitions(endpoint, yourMosaic.mosaicId.namespaceId).then(res => {
       // モザイク定義を取得してモザイク定義オブジェクトへ格納する
@@ -116,15 +104,14 @@ async function asyncLoop() {
           // 供給量をmosaicDefinitionMetaDataPairに設定する。
           mosaicDefinitionMetaDataPair['nem:xem'].supply = 8999999999;
           mosaicDefinitionMetaDataPair[fullMosaicName].supply = 9000000000;
-          //return console.log(mosaicDefinitionMetaDataPair[fullMosaicName].supply);
           // 署名をしてTransactionを送信する準備を完了する
           const transactionEntity = nem.model.transactions.prepare('mosaicTransferTransaction')
 　　　　　　　(common, transferTransaction1, mosaicDefinitionMetaDataPair, nem.model.network.data.mainnet.id);
           // Transactionをブロードキャストしてネットワークへ公開する
           nem.model.transactions.send(common, transactionEntity, endpoint).then(sendRes => {
-              console.log('sendRes:', sendRes); //結果を表示
-　　　　　　　LED(3000); //結果が出たらバックライトオン３秒
-              client.send('/change_msg', sendRes["message"] + " " + response.myValue, () => {}); //結果のSUCCESSを表示
+              console.log('sendRes:', sendRes); //結果を表示（任意のタイミングで返ってくる）
+              client.send('/change_msg', sendRes["message"] + " " + response.myValue, () => {}); //結果のSUCCESSなどを表示
+　　　　　　　backlight(3000); //結果が出たらバックライトオン３秒
           }).catch(sendErr => {
               console.log('sendError:', sendErr);
             });
@@ -136,13 +123,17 @@ async function asyncLoop() {
     });
 }
 
-//非同期処理のループについてはこちらを参照した：https://qiita.com/KuwaK/items/6455e34c245992a73aa1
-(async ()=> {
-  LED(true)
-  while (true) {
-    console.log("Ready")
-    await asyncLoop()
-    await sleep(7000)
-  }
-}).call()
-//main();
+main()
+
+function main(){
+  client.send('/change_msg', 'WANAPI!  =READY=', () => {});
+  backlight(30000); //立ち上がり後30秒間はLEDオン
+
+  //ループ処理
+  (async ()=> {
+    while (true) {
+      console.log("Ready")
+      await asyncLoop()
+    }
+  }).call()
+}
