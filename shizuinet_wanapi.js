@@ -1,6 +1,6 @@
 #!/usr/bin/node
 //ShizuiNet WanaPi NIS1 version
-//Programmed by Tech Beaurou, 4D Pocket, K.Tezuka & K.Mochizuki
+//Invented and Programmed by K.Tezuka & K.Mochizuki at Gifu University, Supported by Tech Bureou $ 4D Pocket. 
 //20200409
 
 const { Client } = require('node-osc');
