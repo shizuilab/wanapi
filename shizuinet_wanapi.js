@@ -88,7 +88,7 @@ async function asyncLoop() {
   transferTransaction1.mosaics.push(yourMosaic);
   // 手数料を計算するためにモザイクの定義を取得する
   let mosaicDefinitionMetaDataPair = nem.model.objects.get('mosaicDefinitionMetaDataPair');
-  nem.com.requests.namespace.mosaicDefinitions(endpoint, yourMosaic.mosaicId.namespaceId).then(res => {
+  await nem.com.requests.namespace.mosaicDefinitions(endpoint, yourMosaic.mosaicId.namespaceId).then(res => {
       // モザイク定義を取得してモザイク定義オブジェクトへ格納する
       const neededDefinition = nem.utils.helpers.searchMosaicDefinitionArray(res.data, [yourMosaicName]);
       // モザイク定義オブジェクトで使用するため、モザイクの名前を取得
