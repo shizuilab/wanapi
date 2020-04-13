@@ -38,35 +38,15 @@ var nem = require("nem-sdk").default // NIS1用SDKを読み込み
 const endpoint = nem.model.objects.create('endpoint')
         (nem.model.nodes.defaultMainnet, nem.model.nodes.defaultPort);
 
-// ここから主要な処理をする非同期関数
-async function asyncLoop() {
-
-  let questions = {
-      type: "text", // インプットタイプ
-      name: "myValue", // 変数名
-      message: "バーコードを読み取ってください："
-  };
-
-  ///// promptsを起動して入力待ち/////
-  let response =  await prompts(questions);
-  console.log(response.myValue.length); //文字数カウント7文字から16文字まで受け入れる
-  if (response.myValue.length < 7 || response.myValue.length > 16){
-    client.send('/change_msg', '*ERROR!*' + response.myValue, () => {});
-    console.log("入力値の文字数が不正です");
-    await backlight(3000); //エラーの時にはawaitで待ちを入れる
-    return;
-  }
-  client.send('/change_msg', response.myValue + '..........', () => {}); //入力文字列を表示し残りを.で埋める
-  backlight(3000);
-
-  ////////NIS1トランザクション構築///////
+// ここからトランザクション処理をする関数
+async function transaction(msg) {
 
   // 送金先のアドレス（config/wanapi-nis1.jsから取得）
   const toAddress = config.ADDRESS;
   // 送金額（0 XEM でも可。手数料は取られる模様）
   const sendAmount = 0;
   // 送金の際に指定するメッセージ（configの場所＋バーコード読み取り値）
-  const sendMsg = config.PLACE + ":" + response.myValue;
+  const sendMsg = config.PLACE + ":" + msg;
   // 送金元ウォレットのパスワード（空欄でも可）
   const password = '';
   // configより送金元の秘密鍵を取得
@@ -88,7 +68,7 @@ async function asyncLoop() {
   transferTransaction1.mosaics.push(yourMosaic);
   // 手数料を計算するためにモザイクの定義を取得する
   let mosaicDefinitionMetaDataPair = nem.model.objects.get('mosaicDefinitionMetaDataPair');
-  await nem.com.requests.namespace.mosaicDefinitions(endpoint, yourMosaic.mosaicId.namespaceId).then(res => {
+  nem.com.requests.namespace.mosaicDefinitions(endpoint, yourMosaic.mosaicId.namespaceId).then(res => {
       // モザイク定義を取得してモザイク定義オブジェクトへ格納する
       const neededDefinition = nem.utils.helpers.searchMosaicDefinitionArray(res.data, [yourMosaicName]);
       // モザイク定義オブジェクトで使用するため、モザイクの名前を取得
@@ -110,13 +90,13 @@ async function asyncLoop() {
           // Transactionをブロードキャストしてネットワークへ公開する
           nem.model.transactions.send(common, transactionEntity, endpoint).then(sendRes => {
               console.log('sendRes:', sendRes); //結果を表示（任意のタイミングで返ってくる）
-              client.send('/change_msg', sendRes["message"] + " " + response.myValue, () => {}); //結果のSUCCESSなどを表示
+              client.send('/change_msg', sendRes["message"] + " " + msg, () => {}); //結果のSUCCESSなどを表示
 　　　　　　　backlight(3000); //結果が出たらバックライトオン３秒
           }).catch(sendErr => {
               console.log('sendError:', sendErr);
             });
       }).catch(supplyErr => {
-          console.log('supplyErr:', supplyErr);
+          console.log('supplyError:', supplyErr);
         });
   }).catch(err => {
       console.log('mosaicDefinitionsError:', err);
@@ -133,7 +113,24 @@ function main(){
   (async ()=> {
     while (true) {
       console.log("Ready")
-      await asyncLoop()
+      let questions = {
+          type: "text", // インプットタイプ
+          name: "myValue", // 変数名
+          message: "バーコードを読み取ってください："
+      };
+
+      ///// promptsを起動して入力待ち/////
+      let response =  await prompts(questions);
+      console.log(response.myValue.length); //文字数カウント7文字から16文字まで受け入れる
+      if (response.myValue.length < 7 || response.myValue.length > 16){
+          client.send('/change_msg', '*ERROR!*' + response.myValue, () => {});
+          console.log("入力値の文字数が不正です");
+      }
+      else {
+          client.send('/change_msg', response.myValue + '..........', () => {}); //入力文字列を表示し残りを.で埋める
+          await transaction(response.myValue);
+      }
+      await backlight(3000);
     }
   }).call()
 }
