@@ -40,14 +40,14 @@ const endpoint = nem.model.objects.create('endpoint')
         (nem.model.nodes.defaultMainnet, nem.model.nodes.defaultPort);
 
 // ここからトランザクション処理をする関数
-async function transaction(msg) {
+async function transaction(addr, msg) {
 
   // 送金先のアドレス（バーコードから取得）
-  const toAddress = msg.addr;
+  const toAddress = addr;
   // 送金額（0 XEM でも可。手数料は取られる模様）
   const sendAmount = 0;
   // 送金の際に指定するメッセージ（configの場所＋バーコード読み取り値）
-  const sendMsg = config.PLACE + ":" + msg.msg;
+  const sendMsg = config.PLACE + ":" + msg;
   // 送金元ウォレットのパスワード（空欄でも可）
   const password = '';
   // configより送金元の秘密鍵を取得
@@ -129,10 +129,30 @@ function main(){
       }
       else {
           client.send('/change_msg', response.myValue + '..........', () => {}); //入力文字列を表示し残りを.で埋める
-          //await transaction(response.myValue);
           var json_data = response.myValue;
+          var result = "";
+
+          json_data = json_data.replace("{","}");
+          json_data = json_data.replace("{","}");
+          json_data = json_data.replace("`","{");
+          json_data = json_data.replace("`","{");
+
+          while(result !== json_data){
+            json_data = json_data.replace("*", "\"");
+            result = json_data.replace("*", "\"");
+          }
+
+          result = "";
+
+          while(result !== json_data){
+            json_data = json_data.replace("+", ":");
+            result = json_data.replace("+", ":");
+          }
+
+          //await console.log(json_data);
           var data = JSON.parse(json_data);
-          await transaction(data["data"]["addr"],data["data"]["msg"]);
+          await transaction(data["data"]["addr"], data["data"]["msg"]);
+          //await  console.log(data);
       }
       await backlight(3000);
     }
