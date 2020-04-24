@@ -4,6 +4,7 @@
 //Supported by Tech Bureou $ 4D Pocket.
 //Distributed from 20200409
 //非同期処理についてはこちらを参考にした：https://qiita.com/KuwaK/items/6455e34c245992a73aa1
+//読み取ったバーコードからアドレスを取得する実験
 
 console.log("WanaPi!起動中...");
 
@@ -41,12 +42,12 @@ const endpoint = nem.model.objects.create('endpoint')
 // ここからトランザクション処理をする関数
 async function transaction(msg) {
 
-  // 送金先のアドレス（config/wanapi-nis1.jsから取得）
-  const toAddress = config.ADDRESS;
+  // 送金先のアドレス（バーコードから取得）
+  const toAddress = msg.addr;
   // 送金額（0 XEM でも可。手数料は取られる模様）
   const sendAmount = 0;
   // 送金の際に指定するメッセージ（configの場所＋バーコード読み取り値）
-  const sendMsg = config.PLACE + ":" + msg;
+  const sendMsg = config.PLACE + ":" + msg.msg;
   // 送金元ウォレットのパスワード（空欄でも可）
   const password = '';
   // configより送金元の秘密鍵を取得
@@ -122,13 +123,16 @@ function main(){
       ///// promptsを起動して入力待ち/////
       let response =  await prompts(questions);
       console.log(response.myValue.length); //文字数カウント7文字から16文字まで受け入れる
-      if (response.myValue.length < 7 || response.myValue.length > 16){
+      if (response.myValue.length < 7 || response.myValue.length > 1024){
           client.send('/change_msg', '*ERROR!*' + response.myValue, () => {});
           console.log("入力値の文字数が不正です");
       }
       else {
           client.send('/change_msg', response.myValue + '..........', () => {}); //入力文字列を表示し残りを.で埋める
-          await transaction(response.myValue);
+          //await transaction(response.myValue);
+          var json_data = response.myValue;
+          var data = JSON.parse(json_data);
+          await transaction(data["data"]["addr"],data["data"]["msg"]);
       }
       await backlight(3000);
     }
