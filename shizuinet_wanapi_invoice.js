@@ -5,6 +5,7 @@
 //Distributed from 20200409
 //非同期処理についてはこちらを参考にした：https://qiita.com/KuwaK/items/6455e34c245992a73aa1
 //読み取ったバーコードからアドレスを取得する実験
+//キーボードレイアウト問題をreplaceで無理やり解決中
 
 console.log("WanaPi!起動中...");
 
@@ -130,6 +131,9 @@ function main(){
       else {
           client.send('/change_msg', response.myValue + '..........', () => {}); //入力文字列を表示し残りを.で埋める
           var json_data = response.myValue;
+
+          //文字化け対策（日本語環境用）
+
           var result = "";
 
           json_data = json_data.replace("{","}");
@@ -148,6 +152,7 @@ function main(){
             json_data = json_data.replace("+", ":");
             result = json_data.replace("+", ":");
           }
+          //文字化け対策ここまで
 
           //await console.log(json_data);
           var data = JSON.parse(json_data);
