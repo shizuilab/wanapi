@@ -1,3 +1,4 @@
 config/wanapi-nis1.js
+config/wanapi-test.js
 node_modules
-
+package-lock.json
